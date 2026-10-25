@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Packet Routing Simulator | DSA Microproject</title>
+  
+  <!-- Vendor CSS & Fonts -->
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/animations.css">
+
+  <!-- Local Offline Vendor Libraries -->
+  <script src="/static/vendor/cytoscape.min.js"></script>
+  <script src="/static/vendor/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ================= Application Header ================= -->
+  <header class="app-header">
+    <div class="header-top">
+      <div class="brand-wrapper">
+        <div class="brand-icon">🌐</div>
+        <div>
+          <h1 class="brand-title">Network Routing Simulator</h1>
+          <p class="brand-subtitle">
+            Dynamic Packet Routing Using Data Structures & Algorithms
+          </p>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="scenario-select-wrapper">
+          <label for="preset-scenario-select">Topology:</label>
+          <select id="preset-scenario-select" class="form-select tooltip" data-tooltip="Choose a predefined network topology.">
+            <option value="default_mesh">Standard Academic 6-Router Mesh</option>
+          </select>
+        </div>
+        <button id="btn-reset-topology" class="btn btn-secondary btn-sm tooltip" data-tooltip="Reset the network to its original state." title="Reset current network topology to its initial state">
+          🔄 Reset Network
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Navigation Bar (Simplified 3 Focused Pages) -->
+    <nav class="nav-tabs-wrapper">
+      <ul class="nav-tabs" role="tablist">
+        <li>
+          <button class="nav-tab-btn active" data-tab="simulator">
+            🌐 1. Network Simulator 
+          </button>
+        </li>
+        <li>
+          <button class="nav-tab-btn" data-tab="search">
+            🔎 2. Router Search 
+          </button>
+        </li>
+
+      </ul>
+    </nav>
+  </header>
+
+  <!-- ================= Main Content Container ================= -->
+  <main class="main-content">
+
+    <!-- ================================================================= -->
+    <!-- 1. MAIN SIMULATOR TAB (Unified Workspace: Graph + Controller + Sub-Panels) -->
+    <!-- ================================================================= -->
+    <section id="tab-simulator" class="tab-pane active">
+
+      <!-- Real-time Failure & Reroute Alert Banner -->
+      <div id="dynamic-reroute-alert" class="reroute-banner" style="margin-bottom: 14px;">
+        <div class="reroute-banner-content">
+          <span class="reroute-badge">STATUS</span>
+          <span id="reroute-status-text">Network Operational. Select endpoints and step through traversal, or click any router/link to simulate failure.</span>
+        </div>
+        <div id="reroute-path-comparison" class="reroute-path-diff"></div>
+      </div>
+
+      <!-- Main Two-Column Simulator Layout -->
+      <div class="simulator-main-grid">
+
+        <!-- Left: Interactive Cytoscape Canvas Card -->
+        <div class="card canvas-card">
+          <div class="card-header">
+            <div class="card-title">🌐 Interactive Network Topology Canvas </div>
+            <div class="btn-group">
+              <button id="btn-canvas-fit" class="btn btn-secondary btn-sm" title="Fit to screen">Fit</button>
+              <button id="btn-canvas-zoom-in" class="btn btn-secondary btn-sm" title="Zoom in">+</button>
+              <button id="btn-canvas-zoom-out" class="btn btn-secondary btn-sm" title="Zoom out">-</button>
+            </div>
+          </div>
+          <div class="card-body" style="padding: 0; position: relative;">
+            <div id="main-cytoscape-canvas" class="cytoscape-container" style="height: 480px;"></div>
+            <!-- Canvas Legend -->
+            <div class="canvas-legend">
+              <div class="legend-item"><span class="legend-color" style="background: #2563eb;"></span> Active Router</div>
+              <div class="legend-item"><span class="legend-color" style="background: #fee2e2; border: 1px dashed #ef4444;"></span> Failed Router</div>
+              <div class="legend-item"><span class="legend-color" style="background: #f59e0b;"></span> Current Node</div>
+              <div class="legend-item"><span class="legend-color" style="background: #0284c7;"></span> Queued/Stacked</div>
+              <div class="legend-item"><span class="legend-color" style="background: #0d9488;"></span> Visited Node</div>
+              <div class="legend-item"><span class="legend-color" style="background: #10b981;"></span> Final Path</div>
+              <div class="legend-item"><span class="legend-color" style="background: #ef4444;"></span> Cut Link</div>
+            </div>
+          </div>
+          <div class="card-footer" style="font-size: 0.82rem; color: var(--text-muted);">
+            💡 <strong>Interactive Controls:</strong> Drag routers to reposition. Click any router or link to toggle failure status and observe live dynamic rerouting!
+          </div>
+        </div>
+
+        <!-- Right: Traversal Controller & Live State Inspection Panel -->
+        <div class="card controller-card" style="box-shadow: var(--shadow-sm);">
+          <div class="card-header">
+            <div class="card-title">🎮 Traversal Controller <span class="badge badge-info">CO1 & CO5</span></div>
+            <span id="unified-algo-badge" class="badge badge-primary">BFS (Queue)</span>
+          </div>
+          <div class="card-body" style="display: flex; flex-direction: column; gap: 12px;">
+
+            <!-- Algorithm Selector Toggle -->
+            <div class="algo-toggle-group">
+              <label class="form-label" style="font-weight: 600; margin-bottom: 4px; font-size: 0.82rem;">Select Traversal Algorithm:</label>
+              <div class="btn-group" style="width: 100%;">
+                <button type="button" id="btn-select-algo-bfs" class="btn btn-primary btn-sm algo-select-btn active" style="flex: 1;">
+                  🔍 BFS (FIFO Queue)
+                </button>
+                <button type="button" id="btn-select-algo-dfs" class="btn btn-secondary btn-sm algo-select-btn" style="flex: 1;">
+                  🌲 DFS (LIFO Stack)
+                </button>
+              </div>
+            </div>
+
+            <!-- Route Endpoints -->
+            <div class="form-row" style="display: flex; gap: 8px;">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Source:</label>
+                <select id="sim-source-select" class="form-select">
+                  <option value="R1" selected>R1 (Gateway)</option>
+                  <option value="R2">R2 (North)</option>
+                  <option value="R3">R3 (South)</option>
+                  <option value="R4">R4 (North-East)</option>
+                  <option value="R5">R5 (South-East)</option>
+                  <option value="R6">R6 (Egress)</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Destination:</label>
+                <select id="sim-dest-select" class="form-select">
+                  <option value="R6" selected>R6 (Egress)</option>
+                  <option value="R5">R5 (South-East)</option>
+                  <option value="R4">R4 (North-East)</option>
+                  <option value="R3">R3 (South)</option>
+                  <option value="R2">R2 (North)</option>
+                  <option value="R1">R1 (Gateway)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Compute / Load Traversal Button -->
+            <button id="btn-compute-traversal" class="btn btn-primary btn-block">
+              🚀 Run Traversal Calculation
+            </button>
+
+            <!-- Playback Controls -->
+            <div class="playback-controls-wrapper">
+              <div class="btn-group" style="width: 100%; justify-content: center;">
+                <button id="btn-sim-prev" class="btn btn-secondary btn-sm" title="Step Backward (Back)" disabled>⏮️ Back</button>
+                <button id="btn-sim-step" class="btn btn-primary btn-sm" title="Step Forward">⏯️ Step</button>
+                <button id="btn-sim-start" class="btn btn-success btn-sm" title="Auto-Play">▶️ Auto-play</button>
+                <button id="btn-sim-pause" class="btn btn-warning btn-sm" title="Pause" disabled>⏸️ Pause</button>
+                <button id="btn-sim-reset" class="btn btn-secondary btn-sm" title="Reset Simulation">🔄 Reset</button>
+              </div>
+
+              <!-- Speed Slider -->
+              <div class="speed-slider-wrapper" style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
+                <span style="font-weight: 600;">Speed:</span>
+                <input type="range" id="sim-speed-slider" min="200" max="1800" step="100" value="800" style="flex: 1; margin: 0 10px;">
+                <span id="sim-speed-val" class="badge badge-light">800ms</span>
+              </div>
+            </div>
+
+            <!-- Live Status Badges -->
+            <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; padding: 6px 10px; background: var(--bg-tertiary); border-radius: var(--radius-sm); font-size: 0.8rem;">
+              <div><strong>Step:</strong> <span id="sim-step-counter" class="badge badge-info">0 / 0</span></div>
+              <div><strong>Active Node:</strong> <span id="sim-current-node" class="badge badge-warning">None</span></div>
+              <div id="sim-backtrack-indicator" style="display: none;"><span class="badge badge-danger">⚠️ Backtracking</span></div>
+            </div>
+
+            <!-- Explain This Step Box -->
+            <div class="explanation-box" style="padding: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-sm);">
+              <div style="font-size: 0.72rem; font-weight: 700; color: #166534; text-transform: uppercase; margin-bottom: 4px;">
+                💬 Explain This Step
+              </div>
+              <div id="sim-explanation-text" style="font-size: 0.84rem; color: #1e293b; line-height: 1.4;">
+                Click "Run Traversal Calculation" to explore graph nodes layer-by-layer (BFS) or depth-first (DFS).
+              </div>
+            </div>
+
+            <!-- Live Data Structure Inspection (Queue for BFS / Stack for DFS) -->
+            <div class="live-ds-box" style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span id="sim-ds-title" style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted);">
+                  📦 Live FIFO Queue (Front ➔ Rear)
+                </span>
+                <span id="sim-ds-size" class="badge badge-light" style="font-size: 0.7rem;">0 items</span>
+              </div>
+              <div id="sim-ds-container" class="queue-conveyor" style="min-height: 44px; max-height: 60px; overflow-x: auto;">
+                <span class="text-muted" style="font-size: 0.8rem; margin: auto;">Queue empty</span>
+              </div>
+            </div>
+
+            <!-- Visited Nodes Box -->
+            <div class="live-visited-box" style="font-size: 0.8rem;">
+              <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">
+                🟢 Visited Routers (Exploration Order):
+              </div>
+              <div id="sim-visited-container" style="display: flex; flex-wrap: wrap; gap: 4px; min-height: 28px;">
+                <span class="text-muted" style="font-size: 0.8rem;">None visited yet</span>
+              </div>
+            </div>
+
+            <!-- Parent Map Table -->
+            <details class="parent-map-details" style="font-size: 0.8rem; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; background: white;">
+              <summary style="cursor: pointer; font-weight: 600; color: var(--text-main);">
+                🗺️ Parent Pointer Map (for Path Reconstruction)
+              </summary>
+              <div style="max-height: 130px; overflow-y: auto; margin-top: 8px;">
+                <table class="data-table" style="font-size: 0.75rem;">
+                  <thead>
+                    <tr><th>Discovered Child</th><th>Parent (Predecessor)</th></tr>
+                  </thead>
+                  <tbody id="sim-parent-tbody">
+                    <tr><td colspan="2" class="text-muted" style="text-align: center;">No discovery recorded</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+
+            <!-- Final Reconstructed Route Banner -->
+            <div id="sim-reconstructed-route-box" style="display: none; padding: 10px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: var(--radius-sm); font-size: 0.84rem;">
+              <strong>🎉 Route Discovered:</strong> <span id="sim-final-route-path" style="font-family: var(--font-mono); font-weight: 700; color: #047857;"></span>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- Collapsible Detailed Sections (Below Main 2-Column Panel) -->
+      <!-- ================================================================= -->
+      <div class="collapsible-sections-container">
+
+        <!-- 1. Adjacency List & Matrix -->
+        <details id="collapse-adj" class="collapsible-card">
+          <summary class="collapsible-header">
+            <span>📋 Graph Representations: Adjacency List ($O(V+E)$) & Adjacency Matrix ($O(V^2)$)</span>
+            
+          </summary>
+          <div class="collapsible-body">
+            <div class="grid-2col">
+              <div>
+                <h4 style="font-size: 0.9rem; margin-bottom: 8px;">Adjacency List ($O(V + E)$ Space)</h4>
+                <div id="adjacency-list-view" style="max-height: 220px; overflow-y: auto; background: var(--bg-primary); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);"></div>
+                <small class="text-muted" style="display: block; margin-top: 6px;">Memory-efficient for sparse topologies; direct neighbor iteration during BFS/DFS.</small>
+              </div>
+              <div>
+                <h4 style="font-size: 0.9rem; margin-bottom: 8px;">Adjacency Matrix ($O(V^2)$ Space)</h4>
+                <div id="adjacency-matrix-view" class="matrix-container" style="max-height: 220px; overflow: auto; background: var(--bg-primary); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);"></div>
+                <small class="text-muted" style="display: block; margin-top: 6px;">Constant-time $O(1)$ link verification between any router pair.</small>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- 2. Packet Buffer (Queue) & Route History (Linked List) -->
+        <details id="collapse-packet" class="collapsible-card">
+          <summary class="collapsible-header">
+            <span>📦 Packet Buffer (FIFO Queue - CO1) & Hop Route History (Singly Linked List - CO2)</span>
+            <span class="badge badge-info">CO1 & CO2</span>
+          </summary>
+          <div class="collapsible-body">
+            <!-- Visual Conveyor FIFO Queue -->
+            <div class="ds-visualizer-box">
+              <div class="ds-header">
+                <span>Live FIFO Packet Buffer Conveyor (CO1)</span>
+              </div>
+              <div id="packet-queue-visualizer">
+                <div class="queue-strip">
+                  <span class="text-muted" style="font-size: 0.82rem;">Queue is empty. Enqueue a packet below.</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Creation & Processing Controls -->
+            <div class="grid-3col" style="margin-top: 14px; align-items: flex-end;">
+              <div>
+                <label style="font-size: 0.8rem; font-weight: 600;">Source Router:</label>
+                <select id="packet-source-select" class="form-select" style="width: 100%; margin-top: 4px;"></select>
+              </div>
+              <div>
+                <label style="font-size: 0.8rem; font-weight: 600;">Destination Router:</label>
+                <select id="packet-dest-select" class="form-select" style="width: 100%; margin-top: 4px;"></select>
+              </div>
+              <div>
+                <label style="font-size: 0.8rem; font-weight: 600;">Routing Algorithm:</label>
+                <select id="packet-algorithm-select" class="form-select" style="width: 100%; margin-top: 4px;">
+                  <option value="BFS">BFS (Minimum-Hop Route)</option>
+                  <option value="DFS">DFS (Deep Exploration)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="margin-top: 12px; display: flex; gap: 10px;">
+              <button id="btn-enqueue-packet" class="btn btn-primary btn-sm">➕ Enqueue New Packet</button>
+              <button id="btn-process-next-packet" class="btn btn-success btn-sm">⚙️ Dequeue & Process Front Packet (with Dot Animation)</button>
+            </div>
+
+            <!-- Delivered Packet Linked List Banner -->
+            <div id="packet-delivered-banner" class="delivered-history-banner" style="display: none;"></div>
+
+            <!-- Transmission History Table -->
+            <div style="margin-top: 16px;">
+              <h4 style="font-size: 0.88rem; margin-bottom: 8px;">🔗 Packet Transmission History (Singly Linked List Audit - CO2)</h4>
+              <div class="table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Packet ID</th>
+                      <th>Endpoints</th>
+                      <th>Algorithm</th>
+                      <th>Delivery Status</th>
+                      <th>Hops</th>
+                      <th>Route Chain</th>
+                      <th>Linked List Audit</th>
+                    </tr>
+                  </thead>
+                  <tbody id="packet-history-tbody">
+                    <tr><td colspan="7" class="text-muted" style="text-align: center;">No packets transmitted yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- 3. BFS vs DFS Algorithmic Benchmark -->
+        <details id="collapse-compare" class="collapsible-card">
+          <summary class="collapsible-header">
+            <span>⚖️ BFS vs DFS Algorithmic Benchmark Comparison</span>
+            <span class="badge badge-info">CO5</span>
+          </summary>
+          <div class="collapsible-body">
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+              <button id="btn-run-traversal-compare" class="btn btn-primary btn-sm">Run Traversal Benchmark</button>
+            </div>
+            <div id="traversal-verdict-box" style="margin-bottom: 14px;">
+              <div class="educational-banner">
+                <h4>Direct Traversal Comparison</h4>
+                <p>Click <strong>Run Traversal Benchmark</strong> to evaluate BFS vs DFS hops, node visits, steps, and backtracking on the active network.</p>
+              </div>
+            </div>
+            <div class="grid-2col">
+              <div class="table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Algorithmic Metric</th>
+                      <th style="color: #2563eb;">BFS (FIFO Queue)</th>
+                      <th style="color: #d97706;">DFS (LIFO Stack)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="traversal-comparison-tbody">
+                    <tr><td colspan="3" class="text-muted" style="text-align: center;">Run benchmark to populate metrics.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div style="height: 280px; background: white; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px;">
+                <canvas id="traversal-comparison-chart"></canvas>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- 4. Traditional Next-Hop Routing Table -->
+        <details id="collapse-routing-table" class="collapsible-card">
+          <summary class="collapsible-header">
+            <span>📑 Traditional Next-Hop Routing Table & Hop-by-Hop Forwarding</span>
+            <span class="badge badge-secondary">Next-Hop Simulation</span>
+          </summary>
+          <div class="collapsible-body">
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px;">
+              <label style="font-size: 0.85rem; font-weight: 600;">Inspect Router Forwarding Table:</label>
+              <select id="routing-table-router-select" class="form-select" style="width: 220px;"></select>
+            </div>
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Destination Router</th>
+                    <th>Next Hop Router</th>
+                    <th>Metric (Hops)</th>
+                    <th>Full Path Trace</th>
+                    <th>Link Status</th>
+                  </tr>
+                </thead>
+                <tbody id="routing-table-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+
+        <!-- 5. Failure & Dynamic Rerouting Controls -->
+        <details id="collapse-failure" class="collapsible-card">
+          <summary class="collapsible-header">
+            <span>⚠️ Router & Link Hardware Failure Controls</span>
+            <span class="badge badge-danger">Fault Tolerance</span>
+          </summary>
+          <div class="collapsible-body">
+            <div class="grid-2col">
+              <div>
+                <h4 style="font-size: 0.88rem; margin-bottom: 8px;">Hardware Router Failure Toggle:</h4>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <select id="failure-router-select" class="form-select" style="flex: 1;"></select>
+                  <button id="btn-toggle-selected-router" class="btn btn-warning btn-sm">Toggle Router Status (Fail/Restore)</button>
+                </div>
+                <small class="text-muted" style="display: block; margin-top: 6px;">
+                  Failed routers turn light red; BFS automatically searches for alternative bypass routes.
+                </small>
+              </div>
+              <div>
+                <h4 style="font-size: 0.88rem; margin-bottom: 8px;">Dynamic Route Recalculator:</h4>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="text" id="failure-sim-source" class="form-input" style="width: 70px;" value="R1">
+                  <span>→</span>
+                  <input type="text" id="failure-sim-dest" class="form-input" style="width: 70px;" value="R6">
+                  <button id="btn-dynamic-recalc-route" class="btn btn-primary btn-sm">Recalculate Route</button>
+                </div>
+                <div id="dynamic-reroute-display" style="margin-top: 8px;"></div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 2. ROUTER SEARCH TAB (LINEAR VS BINARY SEARCH - CO3) -->
+    <!-- ================================================================= -->
+    <section id="tab-search" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔎 Router Directory Search (Linear Search vs Binary Search) </div>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="search-input-target" class="form-input" placeholder="Enter Router ID (e.g. R4)" value="R4" style="width: 180px;">
+            <button id="btn-run-search-compare" class="btn btn-primary btn-sm">Search & Compare</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="search-explanation-card">
+            <div class="educational-banner">
+              <h4>Linear Search $O(n)$ vs Binary Search $O(\log n)$ (CO3 Demonstration)</h4>
+              <p>
+                Because CPU timing on small router datasets (6–15 routers) is subject to sub-millisecond operating system jitter, 
+                the <strong>NUMBER OF COMPARISONS</strong> is the true, deterministic DSA metric demonstrating logarithmic efficiency.
+              </p>
+            </div>
+          </div>
+
+          <!-- Comparison Table -->
+          <div class="table-wrapper" style="margin-bottom: 20px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Evaluation Metric</th>
+                  <th style="color: #2563eb;">Linear Search ($O(n)$)</th>
+                  <th style="color: #10b981;">Binary Search ($O(\log n)$)</th>
+                </tr>
+              </thead>
+              <tbody id="search-comparison-tbody">
+                <tr><td colspan="3" class="text-muted" style="text-align: center;">Click 'Search & Compare' to inspect search traces.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Side-by-side Trace Visualization -->
+          <div class="grid-2col">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title" style="color: #2563eb;">Linear Search Execution Trace</div>
+                <span class="badge badge-info">Sequential Scan</span>
+              </div>
+              <div class="card-body">
+                <div id="linear-search-trace-box"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title" style="color: #10b981;">Binary Search Execution Trace</div>
+                <span class="badge badge-success">Divide & Conquer</span>
+              </div>
+              <div class="card-body">
+                <div id="binary-search-trace-box"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Router Directory Records -->
+          <div class="card" style="margin-top: 16px;">
+            <div class="card-header">
+              <div class="card-title">Network Router Directory Records</div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+              <div class="table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Router ID</th>
+                      <th>Name</th>
+                      <th>IP Address</th>
+                      <th>Status</th>
+                      <th>Location</th>
+                    </tr>
+                  </thead>
+                  <tbody id="router-directory-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 3. CONCEPTS & COURSE OUTCOMES (CO) TAB (VIVA GUIDE) -->
+    <!-- ================================================================= -->
+    
+
+  </main>
+
+  <!-- ================= Modals ================= -->
+  <!-- Packet Linked List Inspection Modal -->
+  <div id="packet-ll-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="card-header">
+        <div id="packet-ll-modal-title" class="card-title">Packet Route History</div>
+        <button class="btn btn-secondary btn-sm" onclick="App.closeModal('packet-ll-modal')">✕</button>
+      </div>
+      <div class="card-body">
+        <div id="packet-ll-nodes-container"></div>
+      </div>
+      <div class="card-footer" style="justify-content: flex-end;">
+        <button class="btn btn-primary btn-sm" onclick="App.closeModal('packet-ll-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Application Scripts -->
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/cytoscape_view.js"></script>
+  <script src="/static/js/simulation.js"></script>
+  <script src="/static/js/search_view.js"></script>
+  <script src="/static/js/performance_view.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
